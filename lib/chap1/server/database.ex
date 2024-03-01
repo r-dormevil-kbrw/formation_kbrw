@@ -2,6 +2,7 @@ defmodule Server.Database do
     @json_file "lib/chap1/server/orders_dump/orders_chunk0.json"
 
     use GenServer
+    require Logger
 
     def start_link(_init_value) do
         GenServer.start_link(__MODULE__, :undefined, name: __MODULE__)
@@ -9,54 +10,54 @@ defmodule Server.Database do
 
     @impl true
     def init(_) do
+        Logger.info("Starting database...")
         case :ets.whereis(:my_table) do
             :undefined -> my_table = :ets.new(:my_table, [:named_table, :set])
-                          list = JsonLoader.load_to_database(my_table, @json_file)
-                          {:ok, list}
-            my_table -> list = :ets.tab2list(my_table)
-                        {:ok, list}
+                          JsonLoader.load_to_database(my_table, @json_file)
+                          {:ok, %{name_table: :my_table}}
+            _ -> {:ok, %{name_table: :my_table}}
         end
     end
 
-    def search(database, criteria) do
-        parsed_criteria = Poison.Parser.parse!(criteria, %{keys: :atoms})
-        list = :ets.match_object(database, {:_, parsed_criteria})
+    def search(database, criterias) do
+        list = :ets.match_object(database, {:_, criterias})
         {:ok, list}
     end
 
     @impl true
-    def handle_call(:get, _from, _list) do
-        new_list = :ets.tab2list(:my_table)
-        {:reply, new_list, new_list}
+    def handle_call(:get, _from, state) do
+        new_list = :ets.tab2list(state[:name_table])
+        {:reply, new_list, state}
     end
 
     @impl true
-    def handle_call({:get, key}, _from, list) do
-        object = :ets.lookup(:my_table, key)
-        {:reply, object, [object | list]}
+    def handle_call({:get, key}, _from, state) do
+        object = :ets.lookup(state[:name_table], key)
+        {:reply, object, state}
     end
 
     @impl true
-    def handle_cast({:post, object}, list) do
-        {key, _} = object
-        case :ets.lookup(:my_table, key) do
-            [] -> new_object = :ets.insert(:my_table, object)
-                  {:noreply, [new_object | list]}
-            _object -> {:noreply, list}
+    def handle_cast({:post, new_objects}, state) do
+        existing_objecs = :ets.tab2list(state[:name_table])
+        new_keys = Enum.map(new_objects, fn {key, _} -> key end)
+        existing_keys = Enum.map(existing_objecs, fn {key, _} -> key end)
+        results = Enum.find(new_keys, fn key -> Enum.member?(existing_keys, key) end)
+        case results do
+            nil -> :ets.insert(state[:name_table], new_objects)
+                 {:noreply, state}
+            _ -> {:noreply, state}
         end
     end
 
     @impl true
-    def handle_cast({:put, object}, _list) do
-        :ets.insert(:my_table, object)
-        new_list = :ets.tab2list(:my_table)
-        {:noreply, new_list}
+    def handle_cast({:put, objects}, state) do
+        :ets.insert(state[:name_table], objects)
+        {:noreply, state}
     end
 
     @impl true
-    def handle_cast({:delete, key}, _list) do
-        :ets.delete(:my_table, key)
-        new_list = :ets.tab2list(:my_table)
-        {:noreply, new_list}
+    def handle_cast({:delete, key}, state) do
+        :ets.delete(state[:name_table], key)
+        {:noreply, state}
     end
 end
