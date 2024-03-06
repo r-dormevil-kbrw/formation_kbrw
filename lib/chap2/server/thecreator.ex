@@ -38,9 +38,7 @@ defmodule Server.TheCreator do
 
         Logger.info("Access to path: #{conn.request_path}")
 
-        param = Enum.find(@requests_params, fn {path, _} -> conn.request_path == path end)
-
-        case param do
+        case Enum.find(@requests_params, fn {path, _} -> conn.request_path == path end) do
           {_, {code, message}} -> send_resp(conn, code, message)
           nil -> send_resp(conn, code_error, message_error)
         end

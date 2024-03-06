@@ -19,9 +19,15 @@ defmodule Server.Database do
         end
     end
 
+    # def search(database, {key, value}), do: search(database, %{key => value})
+
     def search(database, criterias) do
-        list = :ets.match_object(database, {:_, criterias})
-        {:ok, list}
+        # criterias = List.wrap(criterias)
+        # {:ok, Enum.uniq(Enum.reduce(criterias, [], fn {key, value}, acc -> acc++:ets.match_object(database, {:_, %{key => value}}) end))}
+        criterias = criterias
+        |> Enum.map(fn {key, value} -> {String.to_existing_atom(key), value} end)
+        |> Enum.into(%{})
+        {:ok, :ets.match_object(database, {:_, criterias})}
     end
 
     @impl true
